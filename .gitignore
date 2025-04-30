@@ -1,1 +1,7 @@
 .*/
+
+**/*.o
+src/osta
+.vscode
+.idea
+.clion

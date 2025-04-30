@@ -1,71 +1,35 @@
-PROGRAM := costa
+# ccosta - osta language compiler in c
+.POSIX:
 
-PROFILE ?= dist
-BUILD_DIR ?= .build
-SRC_DIR ?= src
-TEST_SRC_DIR ?= test
-INCLUDE_DIR ?= include
+include config.mk
 
-CC ?= gcc
-CFLAGS ?= -Wall -Wextra
-LDFLAGS ?=
+SRC = src/costa.c src/syntax/lex.c
+OBJ = $(SRC:.c=.o)
 
-include make/utils.mk
+all: src/osta
 
-PROFILES := debug release dist
-ifeq ($(filter $(PROFILE),$(PROFILES)),)
-$(error Invalid PROFILE: '$(PROFILE)'! Must be one of: $(call delimlist,$(PROFILES:%='%'),$(comma),or))
-endif
+.c.o:
+	$(CC) $(CFLAGS) $(LIBS) -c $< -o $@
 
-ifeq ($(PROFILE),debug)
-	CFLAGS += -g -O0
-else ifeq ($(PROFILE),release)
-	CFLAGS += -g -O2
-else ifeq ($(PROFILE),dist)
-	CFLAGS += -O3
-endif
+src/costa.o: src/syntax/lex.h
+src/lex.o: src/syntax/token.h src/syntax/lex.h
 
-TARGET_DIR := $(BUILD_DIR)/$(PROFILE)
-OBJS_DIR := $(TARGET_DIR)/objs
-TEST_DIR := $(TARGET_DIR)/test
+$(OBJ): config.mk
 
-C_SRCS := $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/**/*.c)
-OBJS := $(C_SRCS:$(SRC_DIR)/%.c=$(OBJS_DIR)/%.o)
+osta: src/osta
 
-TEST_C_SRCS := $(wildcard $(TEST_SRC_DIR)/*.c)
-TEST_OBJS := $(TEST_C_SRCS:$(TEST_SRC_DIR)/%.c=$(TEST_DIR)/%.o) $(filter-out $(OBJS_DIR)/$(PROGRAM).o,$(OBJS))
-
-TARGET := $(TARGET_DIR)/$(PROGRAM)
-TEST_TARGET := $(TARGET_DIR)/test/$(PROGRAM)
-
-.PHONY: all clean debug release dist
-
-all: $(TARGET) $(TEST_TARGET)
-
-$(TARGET): $(OBJS)
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-$(TEST_TARGET): $(TEST_OBJS)
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-$(OBJS_DIR)/%.o: $(SRC_DIR)/%.c
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -I$(SRC_DIR) -c $< -o $@
-
-$(TEST_DIR)/%.o: $(TEST_SRC_DIR)/%.c
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -I$(SRC_DIR) -c $< -o $@
+src/osta: $(OBJ)
+	$(CC) -o $@ $(OBJ) $(CFLAGS)
 
 clean:
-	@rm -rf $(BUILD_DIR)
+	rm -fr src/*.o src/syntax/*.o src/osta
 
-debug:
-	$(MAKE) PROFILE=debug
+install: src/osta
+	mkdir -p $(DESTDIR)$(PREFIX)/bin
+	cp -f src/osta $(DESTDIR)$(PREFIX)/bin
+	chmod 755 $(DESTDIR)$(PREFIX)/bin/osta
 
-release:
-	$(MAKE) PROFILE=release
+uninstall:
+	rm -f $(DESTDIR)$(PREFIX)/bin/osta
 
-dist:
-	$(MAKE) PROFILE=dist
+.PHONY: osta all clean install uninstall
