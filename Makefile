@@ -2,6 +2,9 @@ PROGRAM := costa
 
 PROFILE ?= dist
 BUILD_DIR ?= .build
+SRC_DIR ?= src
+TEST_SRC_DIR ?= test
+INCLUDE_DIR ?= include
 
 CC ?= gcc
 CFLAGS ?= -Wall -Wextra
@@ -24,22 +27,36 @@ endif
 
 TARGET_DIR := $(BUILD_DIR)/$(PROFILE)
 OBJS_DIR := $(TARGET_DIR)/objs
-TARGET := $(TARGET_DIR)/$(PROGRAM)
+TEST_DIR := $(TARGET_DIR)/test
 
-SRCS := $(wildcard **/*.c)
-OBJS := $(SRCS:%.c=$(OBJS_DIR)/%.o)
+C_SRCS := $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/**/*.c)
+OBJS := $(C_SRCS:$(SRC_DIR)/%.c=$(OBJS_DIR)/%.o)
+
+TEST_C_SRCS := $(wildcard $(TEST_SRC_DIR)/*.c)
+TEST_OBJS := $(TEST_C_SRCS:$(TEST_SRC_DIR)/%.c=$(TEST_DIR)/%.o) $(filter-out $(OBJS_DIR)/$(PROGRAM).o,$(OBJS))
+
+TARGET := $(TARGET_DIR)/$(PROGRAM)
+TEST_TARGET := $(TARGET_DIR)/test/$(PROGRAM)
 
 .PHONY: all clean debug release dist
 
-all: $(TARGET)
+all: $(TARGET) $(TEST_TARGET)
 
 $(TARGET): $(OBJS)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-$(OBJS_DIR)/%.o: %.c
+$(TEST_TARGET): $(TEST_OBJS)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+$(OBJS_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -I$(SRC_DIR) -c $< -o $@
+
+$(TEST_DIR)/%.o: $(TEST_SRC_DIR)/%.c
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -I$(SRC_DIR) -c $< -o $@
 
 clean:
 	@rm -rf $(BUILD_DIR)

@@ -5,6 +5,7 @@ Compiler for Osta written in C
 ### Dependencies
 - `make`
 - `gcc`
+- `re2c`
 
 ### Compiling
 To compile the project, run:
