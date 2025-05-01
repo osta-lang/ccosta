@@ -20,8 +20,6 @@
     (da).data[(da).len++] = value; \
 }
 
-// #define DA_INSERT(da, i, value) { \
-
 #define DA_POP(da) ({ \
     if ((da).len == 0) { \
         fprintf(stderr, "da is empty\n"); \

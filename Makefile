@@ -11,6 +11,9 @@ all: src/costa
 .c.o:
 	$(CC) $(CFLAGS) $(LIBS) -c $< -o $@
 
+%.c: %.re
+	re2c -o $@ $<
+
 # executables
 
 src/costa.o: src/syntax/lex.h

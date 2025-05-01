@@ -3,11 +3,6 @@
 
 #include <stddef.h>
 
-typedef struct {
-    const char *str;
-    size_t len;
-} slice_t;
-
 enum token_kind_t {
     TOKEN_UNKNOWN,
     TOKEN_EOF,
@@ -57,6 +52,11 @@ enum token_kind_t {
     TOKEN_COLON,
     TOKEN_SEMICOLON
 };
+
+typedef struct {
+    const char *str;
+    size_t len;
+} slice_t;
 
 union token_as_t {
     slice_t slice;
