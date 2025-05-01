@@ -35,9 +35,9 @@ TESTS_SRC = $(filter-out test/test_runner.c, $(wildcard test/.c))
 TESTS = $(TESTS_SRC:.c=)
 
 test/test_runner: test/test_runner.c
-	$(CC) -o $@ $(OBJ) $(CFLAGS)
+	$(CC) $(CFLAGS) $< -o $@
 
-$(TESTS): %: %.c src/costa.a
+$(TESTS): $(TESTS_SRC) src/costa.a
 	$(CC) $(CFLAGS) $< -o $@
 
 test: $(TESTS) test/test_runner
@@ -46,9 +46,10 @@ test: $(TESTS) test/test_runner
 # misc
 
 clean:
-	rm -rf src/*.o src/syntax/*.o src/costa src/costa.a
+	rm -rf src/*.o src/syntax/*.o src/costa src/costa.a src/test_runner
+	find test -type f -perm /111 | xargs rm -f
 
-install: src/osta
+install: src/costa
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
 	cp -f src/osta $(DESTDIR)$(PREFIX)/bin
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/costa

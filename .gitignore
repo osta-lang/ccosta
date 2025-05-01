@@ -1,8 +1,8 @@
+.*/
+
 **/*.o
+**/*.a
+**/*.exe
+src/osta
 .vscode
 .idea
-.clion
-
-**/*.exe
-src/costa
-test/test_runner
