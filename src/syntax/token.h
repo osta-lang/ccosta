@@ -37,9 +37,9 @@ enum token_kind_t {
 
     TOKEN_IDENTIFIER,
     TOKEN_INT,
-    TOKEN_RINT,
-    TOKEN_STR,
-    TOKEN_RSTR,
+    TOKEN_RAW_INT,
+    TOKEN_STRING,
+    TOKEN_RAW_STRING,
     TOKEN_CHAR,
 
     TOKEN_LPAREN,

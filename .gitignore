@@ -1,8 +1,10 @@
-.*/
+.vscode/
+.idea/
 
 **/*.o
 **/*.a
+
 **/*.exe
 src/osta
-.vscode
-.idea
+test/
+!test/**/*.c

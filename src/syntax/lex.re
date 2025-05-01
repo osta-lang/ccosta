@@ -4,6 +4,15 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+token_t error(const char *src)
+{
+    switch (*src) {
+    case '\0': fprintf(stderr, "Error: Unexpected end of input\n"); break;
+    default: fprintf(stderr, "Error: Unexpected character '%c'\n", *src);
+    }
+    exit(1);
+}
+
 slice_t create_slice(const char *from, const char *to)
 {
     return (slice_t){from, to - from};
@@ -14,20 +23,122 @@ token_t create_token(const slice_t slice, enum token_kind_t kind, union token_as
     return (token_t){slice, kind, as};
 }
 
-token_t ident_token(const char *from, const char *to)
+token_t identifier(const char *from, const char *to)
 {
     return create_token(create_slice(from, to), TOKEN_IDENTIFIER, (union token_as_t){0});
 }
 
-token_t error(const char *src)
+token_t raw_string(const char *from, const char **src) {
+    const char *YYCURSOR = *src;
+    const char *t1 = YYCURSOR;
+    const size_t hash = YYCURSOR - from - 2;
+
+loop:
+    switch (*YYCURSOR) {
+    case '"': ++YYCURSOR; goto end;
+    case '\0': error(YYCURSOR);
+    default: ++YYCURSOR; goto loop;
+    }
+end:
+    for (size_t i = 0; i < hash; ++i) {
+        if (*YYCURSOR != '#') goto loop;
+        ++YYCURSOR;
+    }
+
+    *src = YYCURSOR;
+	return create_token(
+            create_slice(from, YYCURSOR),
+            TOKEN_RAW_STRING,
+            (union token_as_t){ .slice = create_slice(t1, YYCURSOR - 1 - hash) }
+ 	);
+}
+
+void skip_line(const char **src) {
+    const char *YYCURSOR = *src;
+
+loop:
+    switch (*YYCURSOR) {
+    case '\n': ++YYCURSOR; goto end;
+    case '\r': ++YYCURSOR; if (*YYCURSOR == '\n') ++YYCURSOR; goto end;
+    case '\0': goto end;
+    default: ++YYCURSOR; goto loop;
+    }
+end:
+    *src = YYCURSOR;
+}
+
+void skip(const char **src)
 {
-    fprintf(stderr, "Error: Unexpected character '%c'\n", *src);
-    exit(1);
+    const char *YYCURSOR = *src;
+
+loop:
+    switch (*YYCURSOR) {
+    case '\x09' ... '\x0D':
+    case '\x20':
+    case '\x85':
+    case '\xA0': ++YYCURSOR; goto loop;
+    case '\xE1': ++YYCURSOR; switch (*YYCURSOR) {
+        case '\x9A': ++YYCURSOR; switch (*YYCURSOR) {
+            case '\x80': ++YYCURSOR; goto loop;
+            default: break;
+        }
+        default: goto end;
+    }
+    case '\xE2': ++YYCURSOR; switch (*YYCURSOR) {
+        case '\x80': ++YYCURSOR; switch (*YYCURSOR) {
+            case '\x80' ... '\x8A':
+            case '\xA8':
+            case '\xA9':
+            case '\xAF': ++YYCURSOR; goto loop;
+            default: break;
+        }
+        case '\x81': ++YYCURSOR; switch (*YYCURSOR) {
+            case '\x9F': ++YYCURSOR; goto loop;
+            default: break;
+        }
+        default: goto end;
+    }
+    case '\xE3': ++YYCURSOR; switch (*YYCURSOR) {
+        case '\x80': ++YYCURSOR; switch (*YYCURSOR) {
+            case '\x80': ++YYCURSOR; goto loop;
+            default: break;
+        }
+        default: goto end;
+    }
+    case '\xEF': ++YYCURSOR; switch (*YYCURSOR) {
+        case '\xBB': ++YYCURSOR; switch (*YYCURSOR) {
+            case '\xBF': ++YYCURSOR; goto loop;
+            default: break;
+        }
+        default: goto end;
+    }
+    case '/': ++YYCURSOR; goto comment;
+    default: goto end;
+    }
+comment:
+	switch (*YYCURSOR) {
+        case '/': ++YYCURSOR; skip_line(&YYCURSOR); goto loop;
+        case '*': ++YYCURSOR; goto comment_block;
+        default: --YYCURSOR; goto end;
+    }
+comment_block:
+    switch (*YYCURSOR) {
+        case '\0': error(YYCURSOR);
+        case '*': ++YYCURSOR; switch (*YYCURSOR) {
+            case '/': ++YYCURSOR; goto loop;
+            default: ++YYCURSOR; goto comment_block;
+        }
+        default: ++YYCURSOR; goto comment_block;
+    }
+end:
+    *src = YYCURSOR;
 }
 
 token_t lex(const char* src)
 {
     const char *YYCURSOR = src, *YYMARKER;
+
+	skip(&YYCURSOR);
 
     const char *t1;
 
@@ -45,7 +156,8 @@ token_t lex(const char* src)
 
     identifier = XID_Start XID_Continue*;
 
-    @t1 identifier { return ident_token(t1, YYCURSOR); }
-    *          { return error(YYCURSOR); }
+    @t1 identifier    { return identifier(t1, YYCURSOR); }
+	@t1 "r" "#"* "\"" { return raw_string(t1, &YYCURSOR); }
+    *                 { return error(YYCURSOR); }
      */
 }
