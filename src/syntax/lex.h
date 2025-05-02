@@ -3,6 +3,6 @@
 
 #include "token.h"
 
-token_t lex(const char* src);
+token_t lex(const char *src);
 
-#endif //LEX_H
+#endif // LEX_H

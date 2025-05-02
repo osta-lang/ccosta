@@ -13,46 +13,6 @@ token_t error(const char *src)
     exit(1);
 }
 
-slice_t create_slice(const char *from, const char *to)
-{
-    return (slice_t){from, to - from};
-}
-
-token_t create_token(const slice_t slice, enum token_kind_t kind, union token_as_t as)
-{
-    return (token_t){slice, kind, as};
-}
-
-token_t identifier(const char *from, const char *to)
-{
-    return create_token(create_slice(from, to), TOKEN_IDENTIFIER, (union token_as_t){0});
-}
-
-token_t raw_string(const char *from, const char **src) {
-    const char *YYCURSOR = *src;
-    const char *t1 = YYCURSOR;
-    const size_t hash = YYCURSOR - from - 2;
-
-loop:
-    switch (*YYCURSOR) {
-    case '"': ++YYCURSOR; goto end;
-    case '\0': error(YYCURSOR);
-    default: ++YYCURSOR; goto loop;
-    }
-end:
-    for (size_t i = 0; i < hash; ++i) {
-        if (*YYCURSOR != '#') goto loop;
-        ++YYCURSOR;
-    }
-
-    *src = YYCURSOR;
-	return create_token(
-            create_slice(from, YYCURSOR),
-            TOKEN_RAW_STRING,
-            (union token_as_t){ .slice = create_slice(t1, YYCURSOR - 1 - hash) }
- 	);
-}
-
 void skip_line(const char **src) {
     const char *YYCURSOR = *src;
 
@@ -116,7 +76,7 @@ loop:
     default: goto end;
     }
 comment:
-	switch (*YYCURSOR) {
+    switch (*YYCURSOR) {
         case '/': ++YYCURSOR; skip_line(&YYCURSOR); goto loop;
         case '*': ++YYCURSOR; goto comment_block;
         default: --YYCURSOR; goto end;
@@ -134,11 +94,149 @@ end:
     *src = YYCURSOR;
 }
 
+slice_t create_slice(const char *from, const char *to)
+{
+    return (slice_t){from, to - from};
+}
+
+token_t create_token(const slice_t slice, enum token_kind_t kind, union token_as_t as)
+{
+    return (token_t){slice, kind, as};
+}
+
+token_t eof(const char *where)
+{
+    return create_token(create_slice(where, where + 1), TOKEN_EOF, (union token_as_t){0});
+}
+
+token_t exact(const char *from, const char *to, enum token_kind_t kind)
+{
+    return create_token(create_slice(from, to), kind, (union token_as_t){0});
+}
+
+token_t identifier(const char *from, const char *to)
+{
+    return create_token(create_slice(from, to), TOKEN_IDENTIFIER, (union token_as_t){0});
+}
+
+token_t integer(const char *YYCURSOR, const char **src)
+{
+    const char *from = YYCURSOR, *YYMARKER;
+    const char *t1;
+
+    /*!stags:re2c format = 'const char *@@;\n'; */
+
+    /*!re2c
+    re2c:define:YYCTYPE = uint8_t;
+    re2c:yyfill:enable = 0;
+    re2c:encoding:utf8 = 1;
+    re2c:case-ranges = 1;
+    re2c:tags = 1;
+
+    [0-9]+ {
+        *src = YYCURSOR;
+        return create_token(create_slice(from, YYCURSOR), TOKEN_RAW_INT, (union token_as_t){0});
+    }
+    [_0-9]+ {
+        *src = YYCURSOR;
+        return create_token(create_slice(from, YYCURSOR), TOKEN_INT, (union token_as_t){0});
+    }
+    '0' [xX] @t1 [_0-9a-fA-F]+ {
+        *src = YYCURSOR;
+        return create_token(create_slice(from, YYCURSOR), TOKEN_INT, (union token_as_t){0});
+    }
+    '0' [bB] @t1 [_01]+ {
+        *src = YYCURSOR;
+        return create_token(create_slice(from, YYCURSOR), TOKEN_INT, (union token_as_t){0});
+    }
+    '0' [oO] @t1 [_0-7]+ {
+        *src = YYCURSOR;
+        return create_token(create_slice(from, YYCURSOR), TOKEN_INT, (union token_as_t){0});
+    }
+    * { return error(YYCURSOR); }
+    */
+}
+
+token_t string(const char *from, const char **src)
+{
+    const char *YYCURSOR = *src;
+
+loop:
+    switch (*YYCURSOR) {
+    case '"': ++YYCURSOR; goto end;
+    case '\\': ++YYCURSOR; goto escape;
+    case '\0': error(YYCURSOR);
+    default: ++YYCURSOR; goto loop;
+    }
+escape:
+    switch (*YYCURSOR) {
+    case '\0': error(YYCURSOR);
+    default: ++YYCURSOR; goto loop;
+    }
+end:
+    *src = YYCURSOR;
+    return create_token(
+            create_slice(from, YYCURSOR),
+            TOKEN_STRING,
+            (union token_as_t){ .slice = create_slice(from + 1, YYCURSOR - 1) }
+    );
+}
+
+token_t raw_string(const char *from, const char **src) {
+    const char *YYCURSOR = *src;
+    const char *t1 = YYCURSOR;
+    const size_t hash = YYCURSOR - from - 2;
+
+loop:
+    switch (*YYCURSOR) {
+    case '"': ++YYCURSOR; goto end;
+    case '\0': error(YYCURSOR);
+    default: ++YYCURSOR; goto loop;
+    }
+end:
+    for (size_t i = 0; i < hash; ++i) {
+        if (*YYCURSOR != '#') goto loop;
+        ++YYCURSOR;
+    }
+
+    *src = YYCURSOR;
+    return create_token(
+            create_slice(from, YYCURSOR),
+            TOKEN_RAW_STRING,
+            (union token_as_t){ .slice = create_slice(t1, YYCURSOR - 1 - hash) }
+    );
+}
+
+token_t char_literal(const char *from, const char **src)
+{
+    const char *YYCURSOR = *src;
+
+loop:
+    switch (*YYCURSOR) {
+    case '\\': ++YYCURSOR; goto escape;
+    case '\0': error(YYCURSOR);
+    default: ++YYCURSOR; goto end;
+    }
+escape:
+    switch (*YYCURSOR) {
+    case '\0': error(YYCURSOR);
+    default: ++YYCURSOR; goto end;
+    }
+end:
+    if (*YYCURSOR != '\'') error(YYCURSOR);
+    *src = ++YYCURSOR;
+    return create_token(
+            create_slice(from, YYCURSOR),
+            TOKEN_CHAR,
+            (union token_as_t){ .slice = create_slice(from + 1, YYCURSOR - 1) }
+    );
+}
+
 token_t lex(const char* src)
 {
     const char *YYCURSOR = src, *YYMARKER;
 
-	skip(&YYCURSOR);
+    skip(&YYCURSOR);
 
     const char *t1;
 
@@ -156,8 +254,52 @@ token_t lex(const char* src)
 
     identifier = XID_Start XID_Continue*;
 
-    @t1 identifier    { return identifier(t1, YYCURSOR); }
-	@t1 "r" "#"* "\"" { return raw_string(t1, &YYCURSOR); }
-    *                 { return error(YYCURSOR); }
-     */
+    '\x00'              { return eof(YYCURSOR); }
+
+    @t1 "if"            { return exact(t1, YYCURSOR, TOKEN_IF); }
+    @t1 "else"          { return exact(t1, YYCURSOR, TOKEN_ELSE); }
+    @t1 "switch"        { return exact(t1, YYCURSOR, TOKEN_SWITCH); }
+    @t1 "do"            { return exact(t1, YYCURSOR, TOKEN_DO); }
+    @t1 "while"         { return exact(t1, YYCURSOR, TOKEN_WHILE); }
+    @t1 "for"           { return exact(t1, YYCURSOR, TOKEN_FOR); }
+    @t1 "break"         { return exact(t1, YYCURSOR, TOKEN_BREAK); }
+    @t1 "continue"      { return exact(t1, YYCURSOR, TOKEN_CONTINUE); }
+    @t1 "return"        { return exact(t1, YYCURSOR, TOKEN_RETURN); }
+    @t1 "goto"          { return exact(t1, YYCURSOR, TOKEN_GOTO); }
+    @t1 "defer"         { return exact(t1, YYCURSOR, TOKEN_DEFER); }
+
+    @t1 "struct"        { return exact(t1, YYCURSOR, TOKEN_STRUCT); }
+    @t1 "union"         { return exact(t1, YYCURSOR, TOKEN_UNION); }
+    @t1 "enum"          { return exact(t1, YYCURSOR, TOKEN_ENUM); }
+    @t1 "typedef"       { return exact(t1, YYCURSOR, TOKEN_TYPEDEF); }
+
+    @t1 "u8"            { return exact(t1, YYCURSOR, TOKEN_U8); }
+    @t1 "u16"           { return exact(t1, YYCURSOR, TOKEN_U16); }
+    @t1 "u32"           { return exact(t1, YYCURSOR, TOKEN_U32); }
+    @t1 "u64"           { return exact(t1, YYCURSOR, TOKEN_U64); }
+    @t1 "i8"            { return exact(t1, YYCURSOR, TOKEN_I8); }
+    @t1 "i16"           { return exact(t1, YYCURSOR, TOKEN_I16); }
+    @t1 "i32"           { return exact(t1, YYCURSOR, TOKEN_I32); }
+    @t1 "i64"           { return exact(t1, YYCURSOR, TOKEN_I64); }
+    @t1 "f32"           { return exact(t1, YYCURSOR, TOKEN_F32); }
+    @t1 "f64"           { return exact(t1, YYCURSOR, TOKEN_F64); }
+
+    @t1 '_'? identifier { return identifier(t1, YYCURSOR); }
+    @t1 '_'? [0-9]      { return integer(t1, &YYCURSOR); }
+    @t1 '"'             { return string(t1, &YYCURSOR); }
+    @t1 "r" "#"* "\""   { return raw_string(t1, &YYCURSOR); }
+    @t1 "'"             { return char_literal(t1, &YYCURSOR); }
+
+    @t1 '('             { return exact(t1, YYCURSOR, TOKEN_LPAREN); }
+    @t1 ')'             { return exact(t1, YYCURSOR, TOKEN_RPAREN); }
+    @t1 '{'             { return exact(t1, YYCURSOR, TOKEN_LBRACE); }
+    @t1 '}'             { return exact(t1, YYCURSOR, TOKEN_RBRACE); }
+    @t1 '['             { return exact(t1, YYCURSOR, TOKEN_LBRACKET); }
+    @t1 ']'             { return exact(t1, YYCURSOR, TOKEN_RBRACKET); }
+    @t1 ','             { return exact(t1, YYCURSOR, TOKEN_COMMA); }
+    @t1 ':'             { return exact(t1, YYCURSOR, TOKEN_COLON); }
+    @t1 ';'             { return exact(t1, YYCURSOR, TOKEN_SEMICOLON); }
+
+    *                   { return error(YYCURSOR); }
+    */
 }

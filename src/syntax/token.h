@@ -6,7 +6,7 @@
 enum token_kind_t {
     TOKEN_UNKNOWN,
     TOKEN_EOF,
-    
+
     TOKEN_IF,
     TOKEN_ELSE,
     TOKEN_SWITCH,
@@ -68,4 +68,4 @@ typedef struct {
     union token_as_t as;
 } token_t;
 
-#endif //TOKEN_H
+#endif // TOKEN_H
